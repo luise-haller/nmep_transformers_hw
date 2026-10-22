@@ -12,7 +12,7 @@ from seq2seq.transformer.transformer import Transformer
 from seq2seq.data.fr_en import FrEnDataset, collate_fn, tokenizer
 
 run = wandb.init(
-    entity="<INSERT ENTITY HERE>",
+    entity="luiseh-university-of-california-berkeley",
     project="transformer",
     config={
         "learning_rate": 0.00005,
@@ -104,7 +104,8 @@ def train_nmt():
     ).to(device)
 
     # TODO: loss shouldn't include pad tokens, so it should ignore pad token ids
-    criterion = nn.CrossEntropyLoss(ignore_index=...)
+    # DONE
+    criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
     optimizer = optim.AdamW(model.parameters(), lr=base_lr, betas=[0.9, 0.98], eps=1e-9)
     scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
 
@@ -121,7 +122,8 @@ def train_nmt():
 
                 # TODO: if the input is up to the second-last token,
                 # what should the output be?
-                tgt_output = ...
+                # tgt : (B, T)
+                tgt_output = tgt[:, 1:] # keep all sentences predited, start from 1 index since index 0 is BOS
 
                 optimizer.zero_grad()
 
