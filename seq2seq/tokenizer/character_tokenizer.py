@@ -23,17 +23,29 @@ class CharacterTokenizer(Tokenizer):
         # we will use a fixed set of characters that we know will be present in the dataset.
         self.characters = """aàâæbcçdeéèêëfghiîïjklmnoôœpqrstuùûüvwxyÿz0123456789,;.!?:'\"/\\|_@#$%^&*~`+-=<>()[]{}’•–í€óá«»… º◦©ö°äµ—ø­·òãñ―½¼γ®⇒²▪−√¥£¤ß´úª¾є™，ﬁõ  �►□′″¨³‑¯≈ˆ§‰●ﬂ⇑➘①②„≤±†✜✔➪✖◗¢ไทยếệεληνικαåşıруский 한국어汉语ž¹¿šćþ‚‛─÷〈¸⎯×←→∑δ■ʹ‐≥τ;∆℡ƒð¬¡¦βϕ▼⁄ρσ⋅≡∂≠π⎛⎜⎞ω∗"""
 
+        # for encoding: char -> idx
+        for ch in self.characters:
+            if ch not in self.vocab:
+                self.vocab[ch] = len(self.vocab)
+        # for decoding: idx -> char
+        self.inverse_vocab = {i: ch for ch, i in self.vocab.items()}
+
         if verbose:
             print("Vocabulary:", self.vocab)
 
-        raise NotImplementedError("Need to implement vocab initialization")
+        # raise NotImplementedError("Need to implement vocab initialization")
 
     def encode(self, text: str) -> torch.Tensor:
-        raise NotImplementedError(
-            "Need to implement encoder that converts text to tensor of tokens."
-        )
+        # raise NotImplementedError(
+        #     "Need to implement encoder that converts text to tensor of tokens."
+        # )
+        text = text.lower()
+        tokens = [self.vocab[ch] for ch in text]
+        return torch.tensor(tokens, dtype=torch.long)
+
 
     def decode(self, tokens: torch.Tensor) -> str:
-        raise NotImplementedError(
-            "Need to implement decoder that converts tensor of tokens to text."
-        )
+        # raise NotImplementedError(
+        #     "Need to implement decoder that converts tensor of tokens to text."
+        # )
+        return "".join(self.inverse_vocab[i] for i in tokens.tolist())

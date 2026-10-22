@@ -6,6 +6,8 @@ from .attention import MultiHeadAttention, FeedForwardNN
 from .encoder import PositionalEncoding
 from seq2seq.data.fr_en import tokenizer
 
+import math
+
 
 class DecoderLayer(nn.Module):
     def __init__(
@@ -46,7 +48,17 @@ class DecoderLayer(nn.Module):
         self.value_length = value_length
 
         # Define any layers you'll need in the forward pass
-        raise NotImplementedError("Need to implement DecoderLayer layers")
+        # raise NotImplementedError("Need to implement DecoderLayer layers")
+
+        # x -> MSA (tgt_mask) -> Add & Norm -> Cross-Attn (to french) (src mask) -> add & norm -> FFN -> add & norm -> out
+        self.self_attention = MultiHeadAttention(num_heads, embedding_dim, qk_length, value_length)
+        self.cross_attention = MultiHeadAttention(num_heads, embedding_dim, qk_length, value_length)
+        self.ffn = FeedForwardNN(embedding_dim, ffn_hidden_dim)
+
+        self.norm1 = nn.LayerNorm(embedding_dim)
+        self.norm2 = nn.LayerNorm(embedding_dim)
+        self.norm3 = nn.LayerNorm(embedding_dim)
+        self.dropout = nn.Dropout(dropout)
 
 
     def forward(
@@ -59,7 +71,21 @@ class DecoderLayer(nn.Module):
         """
         The forward pass of the DecoderLayer.
         """
-        raise NotImplementedError("Need to implement DecoderLayer forward pass.")
+        # raise NotImplementedError("Need to implement DecoderLayer forward pass.")
+        # MSA: current english token attends to earlier english tokens
+        attention_out = self.self_attention(x, x, x, tgt_mask)
+        x = self.norm1(x + self.dropout(attention_out))
+
+        # cross-attention: english quieries (x), french key/values (enc_x) (skip for LM task)
+        if enc_x is not None:
+            cross_out = self.cross_attention(x, enc_x, enc_x, src_mask)
+            x = self.norm2(x + self.dropout(cross_out))
+        
+        # feed forward
+        ffn_out = self.ffn(x)
+        x = self.norm3(x + self.dropout(ffn_out))
+
+        return x # (B, T_dec, C)
 
 
 class Decoder(nn.Module):
@@ -111,7 +137,14 @@ class Decoder(nn.Module):
         # so we'll have to first create some kind of embedding
         # and then use the other layers we've implemented to
         # build out the Transformer decoder.
-        raise NotImplementedError("Need to implement Decoder layers")
+        # raise NotImplementedError("Need to implement Decoder layers")
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.pos_encoding = PositionalEncoding(embedding_dim, dropout, max_length)
+        self.layers = nn.ModuleList([
+            DecoderLayer(num_heads, embedding_dim, ffn_hidden_dim, qk_length, value_length, dropout)
+            for _ in range(num_layers)
+        ])
+        self.output_proj = nn.Linear(embedding_dim, vocab_size)
 
     def forward(
         self,
@@ -123,4 +156,11 @@ class Decoder(nn.Module):
         """
         The forward pass of the Decoder.
         """
-        raise NotImplementedError("Need to implement forward pass of Decoder")
+        # raise NotImplementedError("Need to implement forward pass of Decoder")
+        
+        # tokens (B, T_dec) english token ids (x)
+        x = self.embedding(x) * math.sqrt(self.embedding_dim) # (B, T_dec, C)
+        x = self.pos_encoding(x) # (B, T_dec, C)
+        for layer in self.layers:
+            x = layer(x, enc_x, tgt_mask, src_mask)
+        return self.output_proj(x) # (B, T_dec, C) -> (B, T_dex, vocab_size)
