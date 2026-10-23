@@ -5,10 +5,18 @@ import torch
 from seq2seq.transformer.transformer import Transformer
 from seq2seq.data.fr_en import tokenizer
 
+"""
+Results:
+- plain sampling was noisy
+- plain greedy sampling looped
+- greedy + source-relative cap & no-repeat-3-words gave cleanest output
+"""
 
-def decode(model, src_sentence, max_len=100, device="cpu", mode="top_p"):
+def decode(model, src_sentence, max_len=100, device="cpu", mode="greedy"):
     model.eval()
     src_tensor = tokenizer.encode(src_sentence).to(device)
+    # translation is never much longer the original sentence -> cap it with soke slack
+    max_len = min(max_len, int(1.5 * len(src_tensor)) + 5)
 
     tgt_tokens = [tokenizer.bos_token_id]
 
@@ -18,6 +26,12 @@ def decode(model, src_sentence, max_len=100, device="cpu", mode="top_p"):
             output = model(src_tensor.unsqueeze(0), tgt_tensor)
 
         next_token_logits = output[0, -1, :]
+        # don't repeat same word 2+ times -> mask that token (problem seen in nmt_greedy.txt)
+        if len(tgt_tokens) >= 2:
+            prefix = tgt_tokens[-2:] # get last 2 tokens generated so far
+            for i in range(len(tgt_tokens) - 2):
+                if tgt_tokens[i: i + 2] == prefix:
+                    next_token_logits[tgt_tokens[i + 2]] = -float("inf")
 
         if mode == "top_k":
             # top-k
