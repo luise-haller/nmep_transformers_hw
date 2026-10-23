@@ -118,6 +118,10 @@ def train_nmt():
             try:
                 src, tgt = src.to(device), tgt.to(device)
 
+                # positional encoding only covers max_length positions
+                if src.size(1) > max_length or tgt.size(1) > max_length:
+                    continue
+
                 tgt_input = tgt[:, :-1]
 
                 # TODO: if the input is up to the second-last token,
@@ -139,6 +143,9 @@ def train_nmt():
                 run.log({"loss": loss})
             except Exception as e:
                 print(e)
+                output = loss = None
+                optimizer.zero_grad(set_to_none=True) # drop gradients from the failed step
+                torch.cuda.empty_cache()
                 continue
 
             if i % 1000 == 0:
